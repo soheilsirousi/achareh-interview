@@ -1,3 +1,4 @@
+from django.contrib.auth import authenticate, login
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils.translation import gettext_lazy as _
@@ -26,3 +27,10 @@ class ExtendedUser(models.Model):
     def get_user_by_phone(cls, phone_number):
         user = cls.objects.filter(phone_number=phone_number)
         return user.first() if user.exists() else None
+
+    @classmethod
+    def login_user(cls, request, user, password):
+        if user := authenticate(request, username=user.username, password=password):
+            login(request, user)
+            return True
+        return False
