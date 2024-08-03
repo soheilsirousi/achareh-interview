@@ -59,25 +59,21 @@ class UserLoginAPI(APIView):
             data["error"] = "wrong field"
             return Response(data, status=HTTP_400_BAD_REQUEST)
 
-        if Block.is_user_block(ip_address=request.META.get('REMOTE_ADDR'), phone_number=phone_number):
+        ip = request.META.get('REMOTE_ADDR')
+        if Block.is_user_block(ip_address=ip, phone_number=phone_number):
             data["error"] = 'attempt too much, try again later'
             return Response(data, status=HTTP_403_FORBIDDEN)
 
         if session.get("attempt", 0) > 2:
-            Block.block_user(phone_number,
-                             request.META.get('REMOTE_ADDR'),
-                             timezone.now() + datetime.timedelta(hours=1))
+            Block.block_user(phone_number, ip, timezone.now() + datetime.timedelta(hours=1))
 
         user = ExtendedUser.get_user_by_phone(phone_number)
 
-        if user is None:
-            data["error"] = 'user does not exist'
-            return Response(data, status=HTTP_404_NOT_FOUND)
-
-        if ExtendedUser.login_user(request, user.user, password):
-            session["attempt"] = 0
-            data["data"] = 'login successfully'
-            return Response(data, status=HTTP_200_OK)
+        if user is not None:
+            if ExtendedUser.login_user(request, user.user, password):
+                session["attempt"] = 0
+                data["data"] = 'login successfully'
+                return Response(data, status=HTTP_200_OK)
 
         try:
             session["attempt"] += 1
@@ -86,13 +82,14 @@ class UserLoginAPI(APIView):
             session.set_expiry(60)
 
         print(session["attempt"])
-        data["error"] = 'incorrect password'
+        data["error"] = 'incorrect username or password'
         return Response(data, status=HTTP_200_OK)
 
 
 class UserRegisterAPI(APIView):
 
     def post(self, request, *args, **kwargs):
+        session = request.session
         data = dict({'data': '', 'error': ''})
 
         try:
@@ -108,6 +105,14 @@ class UserRegisterAPI(APIView):
             data["error"] = "invalid otp"
             return Response(data, status=HTTP_400_BAD_REQUEST)
 
+        ip = request.META.get('REMOTE_ADDR')
+        if Block.is_user_block(ip_address=ip, phone_number=phone_number):
+            data["error"] = 'attempt too much, try again later'
+            return Response(data, status=HTTP_403_FORBIDDEN)
+
+        if session.get("attempt", 0) > 2:
+            Block.block_user(phone_number, ip, timezone.now() + datetime.timedelta(hours=1))
+
         if ExtendedUser.objects.filter(phone_number=phone_number).exists():
             data["error"] = "user is already exist"
             return Response(data, status=HTTP_200_OK)
@@ -117,6 +122,12 @@ class UserRegisterAPI(APIView):
             serializer = ExtendedUserSerializer(user)
             data["data"] = serializer.data
             return Response(data, status=HTTP_201_CREATED)
+
+        try:
+            session["attempt"] += 1
+        except KeyError:
+            session["attempt"] = 1
+            session.set_expiry(60)
 
         data["error"] = "invalid otp code"
         return Response(data, status=HTTP_200_OK)
