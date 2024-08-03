@@ -1,15 +1,18 @@
-from django.shortcuts import render
 from rest_framework.response import Response
-from rest_framework.status import HTTP_200_OK, HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST, HTTP_201_CREATED
+from rest_framework.status import HTTP_200_OK, HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST, HTTP_201_CREATED, \
+    HTTP_403_FORBIDDEN
 from rest_framework.views import APIView
 from customer.utils.messages import create_otp, send_message
-from customer.models import ExtendedUser
+from customer.models import ExtendedUser, Block
 from customer.serializers import ExtendedUserSerializer
+import datetime
+from django.utils import timezone
 
 
 class UserRetrieveAPI(APIView):
 
     def get(self, request, username, *args, **kwargs):
+        print(request.META.get('REMOTE_ADDR'))
         data = dict({'data': '', 'error': ''})
 
         if user := ExtendedUser.get_user_by_username(username):
@@ -46,6 +49,7 @@ class UserCheckAPI(APIView):
 class UserLoginAPI(APIView):
 
     def post(self, request, *args, **kwargs):
+        session = request.session
         data = dict({'data': '', 'error': ''})
 
         try:
@@ -55,6 +59,15 @@ class UserLoginAPI(APIView):
             data["error"] = "wrong field"
             return Response(data, status=HTTP_400_BAD_REQUEST)
 
+        if Block.is_user_block(ip_address=request.META.get('REMOTE_ADDR'), phone_number=phone_number):
+            data["error"] = 'attempt too much, try again later'
+            return Response(data, status=HTTP_403_FORBIDDEN)
+
+        if session.get("attempt", 0) > 2:
+            Block.block_user(phone_number,
+                             request.META.get('REMOTE_ADDR'),
+                             timezone.now() + datetime.timedelta(hours=1))
+
         user = ExtendedUser.get_user_by_phone(phone_number)
 
         if user is None:
@@ -62,9 +75,17 @@ class UserLoginAPI(APIView):
             return Response(data, status=HTTP_404_NOT_FOUND)
 
         if ExtendedUser.login_user(request, user.user, password):
+            session["attempt"] = 0
             data["data"] = 'login successfully'
             return Response(data, status=HTTP_200_OK)
 
+        try:
+            session["attempt"] += 1
+        except KeyError:
+            session["attempt"] = 1
+            session.set_expiry(60)
+
+        print(session["attempt"])
         data["error"] = 'incorrect password'
         return Response(data, status=HTTP_200_OK)
 

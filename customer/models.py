@@ -1,6 +1,8 @@
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.models import User
 from django.db import models
+from django.db.models import Q
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
@@ -58,3 +60,32 @@ class ExtendedUser(models.Model):
         user.set_password(password)
         user.save()
         return cls.objects.get(user=user)
+
+
+class Block(models.Model):
+    phone_number = models.PositiveBigIntegerField(null=True, unique=True, verbose_name=_('phone number'))
+    ip_address = models.GenericIPAddressField(null=True, unique=True, verbose_name=_('ip address'))
+    block_until = models.DateTimeField(blank=False, null=False, verbose_name=_('block until'))
+
+    def __str__(self):
+        return self.ip_address
+
+    class Meta:
+        verbose_name = _('block')
+        verbose_name_plural = _('blocks')
+
+    @classmethod
+    def block_user(cls, phone_number, ip_address, time):
+        return Block.objects.update_or_create(phone_number=phone_number, ip_address=ip_address, block_until=time)
+
+
+    @classmethod
+    def is_user_block(cls, ip_address, phone_number=None):
+        user_block = cls.objects.filter(Q(ip_address=ip_address) | Q(phone_number=phone_number))
+        if not user_block.exists():
+            return False
+        block_time = user_block.first().block_until
+        now = timezone.now()
+        if block_time > now:
+            return True
+        return False
