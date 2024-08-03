@@ -1,9 +1,10 @@
 from django.urls import path
-from customer.views import UserRetrieveAPI, UserCheckAPI, UserLoginAPI, UserRegisterAPI
+from customer.views import UserRetrieveAPI, UserCheckAPI, UserLoginAPI, UserRegisterAPI, UserInfoAPI
 
 urlpatterns = [
     path('login/', UserLoginAPI.as_view(), name='user-login'),
     path('register/', UserRegisterAPI.as_view(), name='user-register'),
-    path('login/check/', UserCheckAPI.as_view(), name='user-check'),
-    path('<str:username>/', UserRetrieveAPI.as_view(), name='user-retrieve'),
+    path('request/', UserCheckAPI.as_view(), name='user-check'),
+    path('userinfo/', UserInfoAPI.as_view(), name='user-info'),
+    path('username/<str:username>/', UserRetrieveAPI.as_view(), name='user-retrieve'),
 ]

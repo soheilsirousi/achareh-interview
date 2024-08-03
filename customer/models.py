@@ -34,3 +34,14 @@ class ExtendedUser(models.Model):
             login(request, user)
             return True
         return False
+
+    @classmethod
+    def register_user(cls, request, phone_number, password=None):
+        if password is None:
+            password = User.objects.make_random_password()
+        user = User.objects.create_user(username=phone_number, password=password)
+        user_detail = cls.objects.get(user=user)
+        user_detail.phone_number = phone_number
+        user_detail.save()
+        cls.login_user(request, user, password)
+        return user_detail
