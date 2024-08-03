@@ -45,3 +45,16 @@ class ExtendedUser(models.Model):
         user_detail.save()
         cls.login_user(request, user, password)
         return user_detail
+
+    @classmethod
+    def save_user_info(cls, phone_number, email, first_name, last_name, password):
+        user = User.objects.filter(username=phone_number)
+        if not user.exists():
+            return None
+        user = user.first()
+        user.first_name = first_name
+        user.last_name = last_name
+        user.email = email
+        user.set_password(password)
+        user.save()
+        return cls.objects.get(user=user)

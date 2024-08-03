@@ -33,14 +33,13 @@ class UserCheckAPI(APIView):
             return Response(data, status=HTTP_400_BAD_REQUEST)
 
         if user := ExtendedUser.get_user_by_phone(phone_number):
-            data["data"] = {"status": "login", "phone_number": phone_number}
+            data["data"] = {"registered": True, "phone_number": phone_number}
             return Response(data, status=HTTP_200_OK)
 
         otp = create_otp()
         request.session["otp"] = otp
         # send_message(phone_number, str(otp)) -> send otp code on message
-        print(request.session["otp"])
-        data["data"] = {"status": "register"}
+        data["data"] = {"registered": False, "otp": otp}
         return Response(data, status=HTTP_200_OK)
 
 
@@ -103,4 +102,25 @@ class UserRegisterAPI(APIView):
 
 
 class UserInfoAPI(APIView):
-    pass
+
+    def post(self, request, *args, **kwargs):
+        data = dict({'data': '', 'error': ''})
+
+        try:
+            phone_number = request.data["phone_number"]
+            first_name = request.data["first_name"]
+            last_name = request.data["last_name"]
+            email = request.data["email"]
+            password = request.data["password"]
+        except KeyError:
+            data["error"] = "wrong field"
+            return Response(data, status=HTTP_400_BAD_REQUEST)
+
+        user = ExtendedUser.save_user_info(phone_number, email, first_name, last_name, password)
+        if user is None:
+            data["error"] = "user does not exist"
+            return Response(data, status=HTTP_400_BAD_REQUEST)
+
+        serializer = ExtendedUserSerializer(user)
+        data["data"] = serializer.data
+        return Response(data, status=HTTP_200_OK)
